@@ -1,32 +1,25 @@
 <?php
-session_start();
 include 'conn.php';
 
-// Check if ID and status are set and not empty
-if (isset($_POST['id'], $_POST['status'])) {
-    // Sanitize input to prevent SQL injection
-    $id = intval($_POST['id']);
-    $status = intval($_POST['status']); // Assuming status is either 0 or 1
-
-    // Prepare and execute the update query
-    $stmt = $conn->prepare("UPDATE contbl SET status = ? WHERE id = ?");
-    $stmt->bind_param("ii", $status, $id);
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Get the ID and status from POST request
+    $id = $_POST['id'];
+    $status = $_POST['status'];
+    
+    // Prepare the SQL query to update the status in the database
+    $sql = "UPDATE contbl SET status = ? WHERE id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('ii', $status, $id);
+    
+    // Execute the query and check for success
     if ($stmt->execute()) {
-        // Update successful
-        $response = array("success" => true);
+        echo json_encode(['success' => true]);
     } else {
-        // Error occurred
-        $response = array("success" => false, "error" => "Error updating status: " . $conn->error);
+        echo json_encode(['success' => false, 'error' => $stmt->error]);
     }
-} else {
-    // If ID or status is not set or empty, return an error message
-    $response = array("success" => false, "error" => "Invalid request");
+    
+    // Close the statement and connection
+    $stmt->close();
+    $conn->close();
 }
-
-// Close the database connection
-$conn->close();
-
-// Send JSON response
-header('Content-Type: application/json');
-echo json_encode($response);
 ?>

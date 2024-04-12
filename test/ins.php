@@ -218,14 +218,16 @@ table tr:hover {
                     echo "<td>";
                     // Show options if status is Pending
                     if ($row["status"] == 0) {
-                        echo "<span class='ellipsis' onclick=\"toggleOptions('options_" . $row["id"] . "')\"><i class='bx bx-dots-horizontal-rounded' aria-hidden='true'></i></span>";
+                        echo "<span class='ellipsis' data-id='" . $row["id"] . "'><i class='bx bx-dots-horizontal-rounded' aria-hidden='true'></i></span>";
+
                         echo "<div class='options' id='options_" . $row["id"] . "'>";
-                        echo "<button class='approve' onclick=\"approveApplication(" . $row["id"] . ")\">Approve</button>";
-                        echo "<button class='reject' onclick=\"rejectApplication(" . $row["id"] . ")\" data-id='$id'>Reject</button>";
+                        echo "<button class='approve' data-id='" . $row["id"] . "' onclick='handleStatusUpdate(event, 1)'>Approve</button>";
+                        echo "<button class='reject' data-id='" . $row["id"] . "' onclick='handleStatusUpdate(event, 2)'>Reject</button>";
+                        
                         echo "</div>";
                     }
                     echo "</td>";
-
+                    
                     echo "</tr>";
                 }
             } else {
@@ -256,120 +258,149 @@ table tr:hover {
 
 
 <script>
-function toggleOptions(id) {
-    var options = document.getElementById(id);
-    var allOptions = document.querySelectorAll('.options');
-    
-    // Close all options boxes
-    allOptions.forEach(function(option) {
-        if (option.id !== id) {
-            option.style.display = 'none';
-        }
-    });
-
-    // Toggle the selected options box
-    if (options.style.display === "none" || options.style.display === "") {
-        options.style.display = "block";
-        optionBoxActive = true; // Set flag to true when an option box is active
-        disableModal(); // Disable modal interactivity when an option box is active
-    } else {
-        options.style.display = "none";
-        optionBoxActive = false; // Set flag to false when no option box is active
-        enableModal(); // Enable modal interactivity when no option box is active
-    }
-}
-
-// Add click event listener to document
-document.addEventListener('click', function(event) {
-    var optionsContainers = document.querySelectorAll('.options');
-    // Loop through all options containers
-    optionsContainers.forEach(function(container) {
-        // Check if click target is outside the current options container and not the ellipsis icon
-        if (!container.contains(event.target) && event.target.className !== 'ellipsis') {
-            container.style.display = 'none'; // Close options box
-            optionBoxActive = false; // Reset option box active state
-            enableModal(); // Enable modal interactivity
-        }
+   document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.ellipsis').forEach(function(ellipsis) {
+        ellipsis.addEventListener('click', function(event) {
+            event.stopPropagation(); // Stop propagation to the parent <tr>
+            const optionsId = 'options_' + this.getAttribute('data-id');
+            toggleOptions(optionsId);
+        });
     });
 });
-
-function approveApplication(id) {
-    event.preventDefault();
-    updateApplicationStatus(id, 1); // 1 represents approved status
+function handleStatusUpdate(event, status) {
+    // Prevent the event from propagating to the parent elements (e.g., row click event)
+    event.stopPropagation();
+    
+    // Get the ID from the data-id attribute of the button
+    const id = event.target.getAttribute('data-id');
+    
+    // Call the function to update the application status
+    updateApplicationStatus(id, status);
 }
 
-function rejectApplication(id) {
-    event.preventDefault();
-    updateApplicationStatus(id, 2); // 2 represents rejected status
-}
 
-
-// ajax dito
-
-function openModal(id) {
-    // Open the main modal
-    var mainModal = document.getElementById("myModal");
-    mainModal.style.display = "block";
-
-    // Fetch data for the given ID using an AJAX request
+// Centralized AJAX function to update the application status
+function updateApplicationStatus(id, status) {
     $.ajax({
-        url: 'fetch_application_data.php',
+        url: 'update_status.php',
         type: 'POST',
-        data: { id: id },
-        dataType: 'json', // Expecting JSON response
+        data: { id: id, status: status },
+        dataType: 'json',
         success: function(response) {
             if (response.success) {
-                // Populate the main modal with data
-                populateModalData(response.data);
+                alert('Application status updated successfully.');
+                location.reload(); // Refresh the page to reflect changes
             } else {
-                console.error('Failed to fetch data:', response.error);
-                // Handle error (e.g., display an error message in the modal)
-                displayErrorInModal(response.error);
+                alert('Error updating status: ' + response.error);
             }
         },
         error: function(xhr, status, error) {
             console.error('AJAX request error:', error);
-            // Handle error (e.g., display an error message in the modal)
-            displayErrorInModal('An error occurred while fetching data.');
+            alert('An error occurred: ' + error);
         }
     });
 }
 
+// Centralized AJAX function
+function sendAjaxRequest(url, data, successCallback, errorCallback) {
+    $.ajax({
+        url: url,
+        type: 'POST',
+        data: data,
+        dataType: 'json',
+        success: successCallback,
+        error: errorCallback
+    });
+}
+
+// Handle updating application status
+function updateApplicationStatus(id, status) {
+    console.log("Updating status for ID:", id, "to", status);
+    $.ajax({
+        url: 'update_status.php',
+        type: 'POST',
+        data: { id: id, status: status },
+        dataType: 'json',
+        success: function(response) {
+            console.log("Server response:", response);
+            if (response.success) {
+                alert('Application status updated successfully.');
+                location.reload(); // Refresh the page to reflect changes
+            } else {
+                alert('Error updating status: ' + response.error);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX request error:', error);
+            alert('An error occurred: ' + error);
+        }
+    });
+}
+
+
+// Add event listeners for buttons using event delegation
+document.addEventListener('click', function(event) {
+    if (event.target.id === 'acceptButton') {
+        // Accept button clicked
+        const dataId = event.target.dataset.id;
+        updateApplicationStatus(dataId, 1);
+        closeModal(); // Close the modal
+    } else if (event.target.id === 'rejectButton') {
+        // Reject button clicked
+        const dataId = event.target.dataset.id;
+        updateApplicationStatus(dataId, 2);
+        closeModal(); // Close the modal
+    }
+});
+
+// Function to open the main modal and fetch application data
+function openModal(id) {
+    // Open modal logic
+    var mainModal = document.getElementById("myModal");
+    mainModal.style.display = "block";
+
+    // Fetch application data
+    sendAjaxRequest('fetch_application_data.php', { id: id }, function(response) {
+        if (response.success) {
+            populateModalData(response.data);
+        } else {
+            displayErrorInModal(response.error);
+        }
+    }, function(xhr, status, error) {
+        displayErrorInModal('An error occurred while fetching data.');
+    });
+}
+
+// Function to populate modal data
 function populateModalData(data) {
-    // Get the modal data container
     var modalData = document.getElementById('modalData');
-    
-    // Clear any previous content
-    modalData.innerHTML = '';
-    
-    // Create content based on the provided data
-    var content = `
+    modalData.innerHTML = `
         <p>Name: ${data.firstName} ${data.lastName}</p>
         <p>Email: ${data.email}</p>
         <p>Contact Number: ${data.conNum}</p>
         <p>Date: ${data.date}</p>
         <p>Status: ${data.status}</p>
-        <!-- Display application letter, CV, picture, and validation ID images -->
+        <!-- Application Letter, CV, Picture, Validation ID -->
         <p>Application Letter:</p>
-        <img src="${data.appLetter}" alt="Application Letter" class="clickable-img" style="max-width: 50%; height: 50%;">
+        <img src="${data.appLetter}" alt="Application Letter" class="clickable-img" style="max-width: 50%; height: auto;">
         <p>CV:</p>
-        <img src="${data.cv}" alt="CV" class="clickable-img" style="max-width: 50%; height: 50%;">
+        <img src="${data.cv}" alt="CV" class="clickable-img" style="max-width: 50%; height: auto;">
         <p>Picture:</p>
-        <img src="${data.picture}" alt="Picture" class="clickable-img"style="max-width: 50%; height: 50%;">
+        <img src="${data.picture}" alt="Picture" class="clickable-img" style="max-width: 50%; height: auto;">
         <p>Validation ID:</p>
-        <img src="${data.valId}" alt="Validation ID" class="clickable-img" style="max-width: 50%; height: 50%;">
+        <img src="${data.valId}" alt="Validation ID" class="clickable-img" style="max-width: 50%; height: auto;">
+        <!-- Action buttons -->
+      
     `;
-
-    // Add content to modal
-    modalData.innerHTML = content;
 
     // Add click event listeners to images for zooming
     addImageClickListeners();
 }
 
+
+// Add image click listeners
 function addImageClickListeners() {
-    // Add event listener to each clickable image
-    document.querySelectorAll('.clickable-img').forEach(function(img) {
+    document.querySelectorAll('.clickable-img').forEach(img => {
         img.addEventListener('click', function() {
             openImageModal(this.src);
         });
@@ -378,17 +409,10 @@ function addImageClickListeners() {
 
 // Function to open the image modal
 function openImageModal(imageSrc) {
-    if (imageSrc) {
-        // Get the image modal elements
-        var imageModal = document.getElementById('imageModal');
-        var modalImage = document.getElementById('modalImage');
-        
-        // Set the src attribute of the modal image to the clicked image source
-        modalImage.src = imageSrc;
-        
-        // Display the image modal
-        imageModal.style.display = 'block';
-    }
+    var imageModal = document.getElementById('imageModal');
+    var modalImage = document.getElementById('modalImage');
+    modalImage.src = imageSrc;
+    imageModal.style.display = 'block';
 }
 
 // Function to close the image modal
@@ -397,25 +421,34 @@ function closeImageModal() {
     imageModal.style.display = 'none';
 }
 
-// Close the image modal when clicking outside of the modal content
-window.addEventListener('click', function(event) {
-    var imageModal = document.getElementById('imageModal');
-    if (event.target === imageModal) {
-        closeImageModal();
-    }
-});
-
 // Function to close the main modal
 function closeModal() {
     var mainModal = document.getElementById("myModal");
     mainModal.style.display = "none";
 }
 
-// Function to display an error message in the modal
+// Display error in modal
 function displayErrorInModal(errorMessage) {
     var modalData = document.getElementById('modalData');
     modalData.innerHTML = `<p>Error: ${errorMessage}</p>`;
 }
+
+// Toggle options for the ellipsis menu
+function toggleOptions(id) {
+    var options = document.getElementById(id);
+    var allOptions = document.querySelectorAll('.options');
+    
+    // Close all options boxes
+    allOptions.forEach(option => {
+        if (option.id !== id) {
+            option.style.display = 'none';
+        }
+    });
+
+    // Toggle the selected options box
+    options.style.display = (options.style.display === 'none' || options.style.display === '') ? 'block' : 'none';
+}
+</script>
 
 
     </script>
